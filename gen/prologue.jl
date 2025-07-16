@@ -1,7 +1,7 @@
 @static if Sys.islinux()
-    const libgclibo = "libgclibo.so"
+    const libgclibo = "libgclib.so"
 elseif Sys.iswindows()
-    const libgclibo = "gclibo.dll"
+    const libgclibo = "gclib.dll"
 else
     error("Unsupported OS")
 end

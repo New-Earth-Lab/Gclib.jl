@@ -8,7 +8,7 @@ options = load_options(joinpath(@__DIR__, "generator.toml"))
 args = get_default_args()
 push!(args, "-I$include_dir")
 
-headers = joinpath(include_dir, "gclibo.h")
+headers = joinpath(include_dir, "gclib.h")
 
 # create context
 ctx = create_context(headers, args, options)
