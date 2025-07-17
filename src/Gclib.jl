@@ -10,7 +10,6 @@ using CEnum
 
 include("libgclib.jl")
 using .LibGclib
-using .LibGclib: GSize
 
 include("exceptions.jl")
 
@@ -132,7 +131,7 @@ function addresses()
             actual_length -= 1
         end
         address_string = String(view(buffer, 1:actual_length))
-        return split(address_string, ',', keepempty=false)
+        return split(address_string, '\n', keepempty=false)
     end
 
     # Fall back to regular addresses
@@ -334,56 +333,37 @@ function remote_connections()
     return String(view(buffer, 1:actual_length))
 end
 
-"""
-    cmd(g::GCon, command::AbstractString)
-
-Send a command without returning the response.
-"""
-function cmd(g::GCon, command::AbstractString)
-    buffer = Vector{UInt8}(undef, G_SMALL_BUFFER)
-    @check GC.@preserve command begin
-        LibGclib.GCommand(g.handle, command, buffer, length(buffer), C_NULL)
+@inline function command(g::GCon, command_string::AbstractString)
+    response = Vector{UInt8}(undef, G_SMALL_BUFFER)
+    bytes_returned = Ref{GSize}(0)
+    GC.@preserve response begin
+        @check LibGclib.GCommand(g.handle, command_string, pointer(response), length(response), bytes_returned)
     end
-    return nothing
+    return String(view(response, 1:bytes_returned[]))
 end
 
-"""
-    cmd(g::GCon, command::AbstractString) -> String
-
-Send a command and return the trimmed response.
-"""
-function cmd(::Type{String}, g::GCon, command::AbstractString)
-    buffer = Vector{UInt8}(undef, G_SMALL_BUFFER)
-    bytes_read = Ref{GSize}(0)
-    @check GC.@preserve command begin
-        LibGclib.GCommand(g.handle, command, buffer, length(buffer), bytes_read)
+function cmd(::Type{Nothing}, g::GCon, command_string::AbstractString)
+    response = Vector{UInt8}(undef, G_SMALL_BUFFER)
+    GC.@preserve response begin
+        @check LibGclib.GCommand(g.handle, command_string, pointer(response), length(response), C_NULL)
     end
-
-    # Convert to string only the bytes that were actually read
-    # The buffer is already null-terminated by GCommand
-    actual_length = bytes_read[]
-    if actual_length > 0 && buffer[actual_length] == 0
-        actual_length -= 1  # Don't include null terminator in string
-    end
-
-    response = String(view(buffer, 1:actual_length))
-    return rstrip(response, [':', '\n', '\r'])
+    nothing
 end
 
-"""
-    cmd(::Type{T}, g::GCon, command::AbstractString) -> T where {T<:Union{Integer,AbstractFloat}}
-
-Send a command and return the response parsed as the specified type.
-"""
-function cmd(::Type{T}, g::GCon, command::AbstractString) where {T<:Union{Integer,AbstractFloat}}
-    response = cmd(String, g, command)
-    return parse(T, response)
+function cmd(::Type{String}, g::GCon, command_string::AbstractString)
+    strip(command(g, command_string), ['\0', ':', '\n', '\r', ' '])
 end
+
+function cmd(::Type{T}, g::GCon, command_string::AbstractString) where {T<:Union{Integer,AbstractFloat}}
+    parse(T, cmd(String, g, command_string))
+end
+
+cmd(g::GCon, command_string::AbstractString) = cmd(String, g, command_string)
 
 # Keep the original cmd_t, cmd_i, cmd_d functions for compatibility
-const cmd_t = (g, command) -> cmd(String, g, command)
-const cmd_i = (g, command) -> cmd(Int, g, command)
-const cmd_d = (g, command) -> cmd(Float64, g, command)
+const cmd_t = (g, command_string) -> cmd(String, g, command_string)
+const cmd_i = (g, command_string) -> cmd(Int, g, command_string)
+const cmd_d = (g, command_string) -> cmd(Float64, g, command_string)
 
 """
     motion_complete(g::GCon, axes::AbstractString)
@@ -522,6 +502,6 @@ function gerror(return_code::Integer)
 end
 
 # Compatibility aliases
-const command = (g, cmd_str) -> cmd(String, g, cmd_str)
+# command function is now the base implementation
 
 end # module Gclib
