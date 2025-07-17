@@ -24,7 +24,6 @@ mutable struct GCon
 
     function GCon(address::AbstractString)
         handle = Ref{LibGclib.GCon}()
-        @check LibGclib.GOption
         @check LibGclib.GOpen(address, handle)
 
         finalizer(new(handle[])) do g
