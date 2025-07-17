@@ -387,8 +387,8 @@ function wait_for_bool(g::GCon, predicate::AbstractString, trials::Int)
     command = "MG ($predicate)"
 
     while trials != 0
-        result = cmd(Int, g, command)  # This will throw on communication error
-        if result != 0  # In Galil, non-zero means true (condition met)
+        result = cmd(Float64, g, command)
+        if !iszero(result)  # In Galil, non-zero means true (condition met)
             return nothing
         end
 
